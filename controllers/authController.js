@@ -83,13 +83,19 @@ exports.signup = async (req, res) => {
 // Login
 exports.login = async (req, res) => {
   try {
-    const { email, password, rememberMe } = req.body;
+    const { email, password, expectedRole, rememberMe } = req.body;
     const user = await userModel.findByEmail(email);
     if (!user) return res.status(400).json({ error: "Invalid credentials." });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch)
       return res.status(400).json({ error: "Invalid credentials." });
+
+    if (expectedRole && user.role !== expectedRole) {
+      return res.status(403).json({
+        error: `Access denied. This account is not a ${expectedRole}.`,
+      });
+    }
 
     const expiresIn = rememberMe ? "7d" : process.env.JWT_EXPIRES_IN;
     const token = jwt.sign(
@@ -98,7 +104,19 @@ exports.login = async (req, res) => {
       { expiresIn }
     );
 
-    res.json({ message: "Login successful", token });
+    res.json({
+      message: "Login successful",
+      token,
+      user: {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        address: user.address,
+      },
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
